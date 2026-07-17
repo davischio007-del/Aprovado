@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { 
   BookOpen, Calendar, Clock, Trophy, RefreshCw, BarChart2, 
   FileText, Sparkles, Plus, Trash2, CheckSquare, Zap, AlertCircle,
-  Shield, Users
+  Shield, Users, LogOut
 } from "lucide-react";
 
 import { Subject, TopicPerformance, StudySession, ScheduledTask, Revision, MockExam, ExamDate, UserAccount } from "./types";
@@ -14,6 +14,7 @@ import WeeklyScheduleView from "./components/WeeklyScheduleView";
 import ReviewsView from "./components/ReviewsView";
 import EbookReader from "./components/EbookReader";
 import AdminPanel from "./components/AdminPanel";
+import LoginScreen from "./components/LoginScreen";
 
 // INITIAL DEFAULT SYLLABUS DATA (PRE-LOADED FOR AMAZING OOB EXPERIENCE)
 const DEFAULT_SUBJECTS: Subject[] = [
@@ -78,6 +79,7 @@ export default function App() {
   // Core Application States (Synced with localStorage)
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
+  const [loadedUserEmail, setLoadedUserEmail] = useState<string>("");
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [topicPerformances, setTopicPerformances] = useState<TopicPerformance[]>([]);
   const [sessions, setSessions] = useState<StudySession[]>([]);
@@ -96,18 +98,59 @@ export default function App() {
   const [newExamDate, setNewExamDate] = useState("");
   const [showExamForm, setShowExamForm] = useState(false);
 
-  // 1. INITIALIZE DATA FROM LOCALSTORAGE OR SET DEFAULTS
+  // 1. INITIALIZE USERS AND CURRENT SESSION FROM LOCALSTORAGE
   useEffect(() => {
-    const cachedSubjects = localStorage.getItem("aprovado_subjects");
-    const cachedPerformances = localStorage.getItem("aprovado_topic_performances");
-    const cachedSessions = localStorage.getItem("aprovado_sessions");
-    const cachedTasks = localStorage.getItem("aprovado_schedule_tasks");
-    const cachedRevisions = localStorage.getItem("aprovado_revisions");
-    const cachedMocks = localStorage.getItem("aprovado_mock_exams");
-    const cachedDates = localStorage.getItem("aprovado_exam_dates");
-    const cachedGoal = localStorage.getItem("aprovado_weekly_goal");
     const cachedUsers = localStorage.getItem("aprovado_users");
     const cachedCurrentUser = localStorage.getItem("aprovado_current_user");
+
+    let loadedUsers = DEFAULT_USERS;
+    if (cachedUsers) {
+      loadedUsers = JSON.parse(cachedUsers);
+      setUsers(loadedUsers);
+    } else {
+      setUsers(DEFAULT_USERS);
+      localStorage.setItem("aprovado_users", JSON.stringify(DEFAULT_USERS));
+    }
+
+    if (cachedCurrentUser) {
+      setCurrentUser(JSON.parse(cachedCurrentUser));
+    } else {
+      setCurrentUser(null);
+    }
+  }, []);
+
+  // Sync users list to localStorage
+  useEffect(() => {
+    if (users.length > 0) {
+      localStorage.setItem("aprovado_users", JSON.stringify(users));
+    }
+  }, [users]);
+
+  // Sync current user to localStorage
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem("aprovado_current_user", JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem("aprovado_current_user");
+    }
+  }, [currentUser]);
+
+  // Whenever currentUser changes, load their specific data atomically!
+  useEffect(() => {
+    if (!currentUser) {
+      setLoadedUserEmail("");
+      return;
+    }
+
+    const email = currentUser.email;
+    const cachedSubjects = localStorage.getItem(`aprovado_subjects_${email}`);
+    const cachedPerformances = localStorage.getItem(`aprovado_topic_performances_${email}`);
+    const cachedSessions = localStorage.getItem(`aprovado_sessions_${email}`);
+    const cachedTasks = localStorage.getItem(`aprovado_schedule_tasks_${email}`);
+    const cachedRevisions = localStorage.getItem(`aprovado_revisions_${email}`);
+    const cachedMocks = localStorage.getItem(`aprovado_mock_exams_${email}`);
+    const cachedDates = localStorage.getItem(`aprovado_exam_dates_${email}`);
+    const cachedGoal = localStorage.getItem(`aprovado_weekly_goal_${email}`);
 
     if (cachedSubjects) {
       setSubjects(JSON.parse(cachedSubjects));
@@ -118,7 +161,6 @@ export default function App() {
     if (cachedPerformances) {
       setTopicPerformances(JSON.parse(cachedPerformances));
     } else {
-      // Build initial performances
       const initialPerf: TopicPerformance[] = [];
       DEFAULT_SUBJECTS.forEach(sub => {
         sub.topics.forEach(t => {
@@ -143,7 +185,6 @@ export default function App() {
     if (cachedTasks) {
       setScheduleTasks(JSON.parse(cachedTasks));
     } else {
-      // Build initial tasks
       const initialTasks = DEFAULT_SCHEDULE_ITEMS.map((item, idx) => ({
         id: `default-task-${idx}`,
         day: item.day,
@@ -180,68 +221,49 @@ export default function App() {
       setWeeklyGoal(15);
     }
 
-    let loadedUsers = DEFAULT_USERS;
-    if (cachedUsers) {
-      loadedUsers = JSON.parse(cachedUsers);
-      setUsers(loadedUsers);
-    } else {
-      setUsers(DEFAULT_USERS);
-      localStorage.setItem("aprovado_users", JSON.stringify(DEFAULT_USERS));
-    }
-
-    if (cachedCurrentUser) {
-      setCurrentUser(JSON.parse(cachedCurrentUser));
-    } else {
-      const adminUser = loadedUsers.find(u => u.role === 'admin') || loadedUsers[0];
-      setCurrentUser(adminUser);
-      localStorage.setItem("aprovado_current_user", JSON.stringify(adminUser));
-    }
-  }, []);
-
-  // 2. CACHE ALL UPDATES TO LOCALSTORAGE
-  useEffect(() => {
-    if (subjects.length > 0) localStorage.setItem("aprovado_subjects", JSON.stringify(subjects));
-  }, [subjects]);
-
-  useEffect(() => {
-    if (topicPerformances.length > 0) localStorage.setItem("aprovado_topic_performances", JSON.stringify(topicPerformances));
-  }, [topicPerformances]);
-
-  useEffect(() => {
-    localStorage.setItem("aprovado_sessions", JSON.stringify(sessions));
-  }, [sessions]);
-
-  useEffect(() => {
-    localStorage.setItem("aprovado_schedule_tasks", JSON.stringify(scheduleTasks));
-  }, [scheduleTasks]);
-
-  useEffect(() => {
-    localStorage.setItem("aprovado_revisions", JSON.stringify(revisions));
-  }, [revisions]);
-
-  useEffect(() => {
-    localStorage.setItem("aprovado_mock_exams", JSON.stringify(mockExams));
-  }, [mockExams]);
-
-  useEffect(() => {
-    localStorage.setItem("aprovado_exam_dates", JSON.stringify(examDates));
-  }, [examDates]);
-
-  useEffect(() => {
-    localStorage.setItem("aprovado_weekly_goal", weeklyGoal.toString());
-  }, [weeklyGoal]);
-
-  useEffect(() => {
-    if (users.length > 0) {
-      localStorage.setItem("aprovado_users", JSON.stringify(users));
-    }
-  }, [users]);
-
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem("aprovado_current_user", JSON.stringify(currentUser));
-    }
+    setLoadedUserEmail(email);
   }, [currentUser]);
+
+  // Caching updates to localStorage (ONLY if loadedUserEmail matches currentUser.email to avoid stale overwrite race conditions!)
+  useEffect(() => {
+    if (!currentUser || loadedUserEmail !== currentUser.email) return;
+    localStorage.setItem(`aprovado_subjects_${currentUser.email}`, JSON.stringify(subjects));
+  }, [subjects, currentUser, loadedUserEmail]);
+
+  useEffect(() => {
+    if (!currentUser || loadedUserEmail !== currentUser.email) return;
+    localStorage.setItem(`aprovado_topic_performances_${currentUser.email}`, JSON.stringify(topicPerformances));
+  }, [topicPerformances, currentUser, loadedUserEmail]);
+
+  useEffect(() => {
+    if (!currentUser || loadedUserEmail !== currentUser.email) return;
+    localStorage.setItem(`aprovado_sessions_${currentUser.email}`, JSON.stringify(sessions));
+  }, [sessions, currentUser, loadedUserEmail]);
+
+  useEffect(() => {
+    if (!currentUser || loadedUserEmail !== currentUser.email) return;
+    localStorage.setItem(`aprovado_schedule_tasks_${currentUser.email}`, JSON.stringify(scheduleTasks));
+  }, [scheduleTasks, currentUser, loadedUserEmail]);
+
+  useEffect(() => {
+    if (!currentUser || loadedUserEmail !== currentUser.email) return;
+    localStorage.setItem(`aprovado_revisions_${currentUser.email}`, JSON.stringify(revisions));
+  }, [revisions, currentUser, loadedUserEmail]);
+
+  useEffect(() => {
+    if (!currentUser || loadedUserEmail !== currentUser.email) return;
+    localStorage.setItem(`aprovado_mock_exams_${currentUser.email}`, JSON.stringify(mockExams));
+  }, [mockExams, currentUser, loadedUserEmail]);
+
+  useEffect(() => {
+    if (!currentUser || loadedUserEmail !== currentUser.email) return;
+    localStorage.setItem(`aprovado_exam_dates_${currentUser.email}`, JSON.stringify(examDates));
+  }, [examDates, currentUser, loadedUserEmail]);
+
+  useEffect(() => {
+    if (!currentUser || loadedUserEmail !== currentUser.email) return;
+    localStorage.setItem(`aprovado_weekly_goal_${currentUser.email}`, weeklyGoal.toString());
+  }, [weeklyGoal, currentUser, loadedUserEmail]);
 
   // 3. HANDLER FUNCTIONS
 
@@ -581,7 +603,9 @@ export default function App() {
   };
 
   const handleClearCompletedRevisions = () => {
-    setRevisions((prev) => prev.filter(r => !r.completed));
+    if (confirm("Tem certeza que deseja excluir permanentemente todas as revisões concluídas?")) {
+      setRevisions((prev) => prev.filter(r => !r.completed));
+    }
   };
 
   // Mock Exams actions
@@ -613,7 +637,10 @@ export default function App() {
   };
 
   const handleDeleteExamDate = (id: string) => {
-    setExamDates((prev) => prev.filter(e => e.id !== id));
+    const exam = examDates.find(e => e.id === id);
+    if (confirm(`Tem certeza que deseja excluir permanentemente o registro da prova "${exam?.name || ""}"?`)) {
+      setExamDates((prev) => prev.filter(e => e.id !== id));
+    }
   };
 
   // Days remaining calculation
@@ -651,6 +678,17 @@ export default function App() {
     setCurrentUser(user);
   };
 
+  if (!currentUser) {
+    return (
+      <LoginScreen 
+        users={users} 
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+        }} 
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#fafbfc] text-gray-800 flex flex-col font-sans">
       
@@ -670,20 +708,34 @@ export default function App() {
           {/* User Badge */}
           <div className="text-right hidden sm:block">
             <div className="flex items-center gap-1.5 justify-end">
-              <span className="text-xs font-bold text-gray-700 block">{currentUser?.name || "Davi Schio"}</span>
+              <span className="text-xs font-bold text-gray-700 block">{currentUser.name}</span>
               <span className={`text-[8px] font-bold uppercase border rounded px-1 px-0.2 ${
-                currentUser?.role === 'admin' 
+                currentUser.role === 'admin' 
                   ? "bg-purple-100 text-purple-700 border-purple-200" 
                   : "bg-blue-100 text-blue-700 border-blue-200"
               }`}>
-                {currentUser?.role === 'admin' ? "ADMIN" : "ALUNO"}
+                {currentUser.role === 'admin' ? "ADMIN" : "ALUNO"}
               </span>
             </div>
-            <span className="text-[10px] text-gray-400 font-medium block -mt-0.5">{currentUser?.email || "davi.schio007@gmail.com"}</span>
+            <span className="text-[10px] text-gray-400 font-medium block -mt-0.5">{currentUser.email}</span>
           </div>
           <div className="h-9 w-9 bg-emerald-100 rounded-xl border border-emerald-200 text-emerald-800 font-extrabold flex items-center justify-center text-sm shadow-inner uppercase">
-            {currentUser ? currentUser.name.split(" ").map(n => n[0]).join("").slice(0, 2) : "DS"}
+            {currentUser.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
           </div>
+
+          {/* Logout Button */}
+          <button
+            onClick={() => {
+              if (confirm("Tem certeza que deseja sair do sistema?")) {
+                setCurrentUser(null);
+                setActiveTab('dashboard');
+              }
+            }}
+            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+            title="Sair"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
