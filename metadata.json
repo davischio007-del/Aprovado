@@ -1,0 +1,6 @@
+{
+  "name": "Aprovado - Planejador de Estudos Inteligente",
+  "description": "Plataforma completa para planejamento de estudos, controle de edital, revisões programadas, horas líquidas, simulados e estatísticas de desempenho.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
